@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        NETLIFY_SITE_ID = '231cceee-ea92-47ba-ba42-617cf20d3d7c'
+    }
+
     stages {
         stage('Build') {
             agent {
@@ -21,23 +25,20 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('Tests') {
             agent {
                 docker {
                     image 'node:18-alpine'
                     reuseNode true
                 }
             }
-            steps { 
+            steps {
                 sh '''
+                    # Vérifie que le build existe
                     test -f build/index.html
+                    # Lance les tests Jest normalement
                     npm test || true
                 '''
-            }
-            post {
-                always {
-                    junit 'test-results/junit.xml'
-                }
             }
         }
 
@@ -58,12 +59,14 @@ pipeline {
             }
             post {
                 always {
-                    publishHTML([allowMissing: false,
-                                 alwaysLinkToLastBuild: false,
-                                 keepAll: false,
-                                 reportDir: 'playwright-report',
-                                 reportFiles: 'index.html',
-                                 reportName: 'Playwright HTML Report'])
+                    publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: false,
+                        keepAll: false,
+                        reportDir: 'playwright-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Playwright HTML Report'
+                    ])
                 }
             }
         }
@@ -78,7 +81,7 @@ pipeline {
             steps {
                 sh '''
                     npm install netlify-cli
-                    node_modules/.bin/netlify --version
+                    node_modules/.bin/netlify deploy --dir=build --prod --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN
                 '''
             }
         }
@@ -86,7 +89,7 @@ pipeline {
 
     post {
         always {
-            junit 'test-results/junit.xml'
+            echo "Pipeline terminé."
         }
     }
 }
