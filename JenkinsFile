@@ -16,12 +16,11 @@ pipeline {
             }
             steps {
                 sh '''
-                    ls -la
                     node --version
                     npm --version
                     npm ci
                     npm run build --if-present
-                    ls -la build || echo "Aucun dossier build trouvé"
+                    ls -la build
                 '''
             }
         }
@@ -35,9 +34,7 @@ pipeline {
             }
             steps {
                 sh '''
-                    # Vérifie que le build existe
                     test -f build/index.html
-                    # Lance les tests Jest normalement
                     npm test || true
                 '''
             }
@@ -53,7 +50,7 @@ pipeline {
             steps {
                 sh '''
                     npm install serve
-                    npx serve -s build &
+                    node_modules/.bin/serve -s build &
                     sleep 10
                     npx playwright test --reporter=html
                 '''
@@ -85,7 +82,7 @@ pipeline {
                     echo "Deploying to production. Site ID: $NETLIFY_SITE_ID"
                     npx netlify --version
                     npx netlify status --auth=$NETLIFY_AUTH_TOKEN || echo "Impossible de vérifier le statut du site"
-                    npx netlify deploy --dir=build --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN --prod
+                    npx netlify deploy --dir=build --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN --prod --skip-build
                 '''
             }
         }
