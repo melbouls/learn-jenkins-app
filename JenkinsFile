@@ -16,14 +16,17 @@ pipeline {
             }
             steps {
                 sh '''
-                    npm ci || npm install
-                    npm run build --if-present || echo "Aucun script build trouvé."
                     ls -la
+                    node --version
+                    npm --version
+                    npm ci
+                    npm run build --if-present
+                    ls -la build || echo "Aucun dossier build trouvé"
                 '''
             }
         }
 
-        stage('Tests unitaires') {
+        stage('Tests') {
             agent {
                 docker {
                     image 'node:18-alpine'
@@ -32,16 +35,15 @@ pipeline {
             }
             steps {
                 sh '''
-                    if npm run | grep -q test; then
-                        npm test || echo "Tests échoués"
-                    else
-                        echo "Aucun test trouvé"
-                    fi
+                    # Vérifie que le build existe
+                    test -f build/index.html
+                    # Lance les tests Jest normalement
+                    npm test || true
                 '''
             }
         }
 
-        stage('Tests E2E') {
+        stage('E2E') {
             agent {
                 docker {
                     image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
@@ -53,24 +55,24 @@ pipeline {
                     npm install serve
                     npx serve -s build &
                     sleep 10
-                    npx playwright test --reporter=html || echo "Tests E2E échoués"
+                    npx playwright test --reporter=html
                 '''
             }
             post {
                 always {
                     publishHTML([
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: false,
+                        keepAll: false,
                         reportDir: 'playwright-report',
                         reportFiles: 'index.html',
-                        reportName: 'Playwright Report'
+                        reportName: 'Playwright HTML Report'
                     ])
                 }
             }
         }
 
-        stage('Déploiement Netlify') {
+        stage('Deploy') {
             agent {
                 docker {
                     image 'node:18-alpine'
@@ -79,9 +81,11 @@ pipeline {
             }
             steps {
                 sh '''
-                    npm install -g netlify-cli
-                    netlify status || echo "Impossible de vérifier le statut"
-                    netlify deploy --dir=build --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN --prod || echo "Échec du déploiement"
+                    npm ci || npm install
+                    echo "Deploying to production. Site ID: $NETLIFY_SITE_ID"
+                    npx netlify --version
+                    npx netlify status --auth=$NETLIFY_AUTH_TOKEN || echo "Impossible de vérifier le statut du site"
+                    npx netlify deploy --dir=build --site=$NETLIFY_SITE_ID --auth=$NETLIFY_AUTH_TOKEN --prod
                 '''
             }
         }
